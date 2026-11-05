@@ -28,7 +28,7 @@ def build_frame(payload=b"", *, vlan=None, proto="udp", src_ip="10.0.0.1", dst_i
     l2 = Ether(src=SRC_MAC, dst=DST_MAC)
     if vlan is not None:
         l2 = l2 / Dot1Q(vlan=vlan)
-    l4 = TCP(sport=1024, dport=80) if proto == "tcp" else UDP(sport=1024, dport=53)
+    l4 = TCP(sport=1024, dport=80) if proto == "tcp" else UDP(sport=1024, dport=5000)
     frame = bytes(l2 / IP(src=src_ip, dst=dst_ip) / l4 / Raw(payload))
     return frame.ljust(MIN_FRAME_LEN, b"\x00")
 
