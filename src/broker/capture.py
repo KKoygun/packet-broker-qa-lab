@@ -1,7 +1,7 @@
-"""Read and write pcap files, and decode frame fields with scapy."""
+"""Read and write pcap files, and validate checksums with scapy."""
 
 from scapy.layers.inet import IP, TCP, UDP
-from scapy.layers.l2 import Dot1Q, Ether
+from scapy.layers.l2 import Ether
 from scapy.utils import rdpcap, wrpcap
 
 
@@ -14,22 +14,6 @@ def write_pcap(path, frames):
 
 def read_pcap(path):
     return [bytes(packet) for packet in rdpcap(str(path))]
-
-
-def decode(frame):
-    """Return the header fields a reviewer would look at in a capture tool."""
-    packet = Ether(frame)
-    l4 = packet[UDP] if UDP in packet else packet[TCP]
-    return {
-        "eth_src": packet.src,
-        "eth_dst": packet.dst,
-        "vlan": packet[Dot1Q].vlan if Dot1Q in packet else None,
-        "ip_src": packet[IP].src,
-        "ip_dst": packet[IP].dst,
-        "l4": l4.name,
-        "sport": l4.sport,
-        "dport": l4.dport,
-    }
 
 
 def checksums_are_valid(frame):
