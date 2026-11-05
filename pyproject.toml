@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "packet-broker-qa-lab"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["scapy==2.8.0"]
+
+[project.optional-dependencies]
+dev = ["pytest==9.2.0", "pytest-html==4.2.0", "robotframework==7.5.1", "ruff==0.17.3"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = ["netns: needs Linux, root and iproute2; skipped automatically otherwise"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
