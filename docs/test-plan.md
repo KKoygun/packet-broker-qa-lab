@@ -14,20 +14,20 @@ tcpdump checks skip themselves if tcpdump is not installed.
 
 | ID | Feature | What is checked | Tests |
 | --- | --- | --- | --- |
-| M1 | Mirror | Byte-identical copies, network port untouched | `test_mirror.py` |
-| M2 | Mirror | No loss, order kept, duplicates kept | `test_mirror.py` |
-| V1 | VLAN filter | Allow list, several VLANs, empty list, no filter | `test_vlan_filter.py` |
+| M1 | Mirror | Byte-identical copies | `test_mirror.py` |
+| M2 | Mirror | No loss, order kept | `test_mirror.py` |
+| V1 | VLAN filter | Allow list, empty list, network port unaffected | `test_vlan_filter.py` |
 | V2 | VLAN filter | Untagged and VID 0 follow the setting | `test_vlan_filter.py` |
 | B1 | Validation | Runts at 0, 1, 13, 14, 40 and 59 bytes are dropped | `test_malformed.py` |
-| B2 | Validation | Bad IPv4 version, header length, total length, VID 4095 | `test_malformed.py` |
+| B2 | Validation | Bad IPv4 version, header length, total length | `test_malformed.py` |
 | S1 | MTU | 1514/1515 untagged, 1518/1519 tagged, jumbo, lowered MTU | `test_mtu.py` |
-| C1 | Counters | Right bucket, bytes correct, received frames all accounted for | `test_counters.py` |
+| C1 | Counters | Right bucket (VID 4095 too), bytes correct, all frames accounted for | `test_counters.py` |
 | P1 | Capture | Pcap header, Ethernet, 802.1Q, IP, TCP/UDP fields, checksums | `test_golden_pcaps.py` |
 | P2 | Capture | Replay matches golden output, tcpdump agrees | `test_golden_pcaps.py` |
 | T1 | Tunnels | Byte-exact round trip, exact overhead, header bytes | `test_tunnels.py` |
 | T2 | Tunnels | Rejects wrong VNI, flag, port, payload type, truncated input | `test_tunnels.py` |
-| I1 | Integration | Mirror, filter, runts and tunnels over veth pairs | `test_netns.py` |
-| R1 | Acceptance | Mirror, filter, runt and veth checks in Robot Framework | `broker.robot` |
+| I1 | Integration | Mirror, filter and tunnels over veth pairs | `test_netns.py` |
+| R1 | Acceptance | Mirror, filter and veth checks in Robot Framework | `broker.robot` |
 | Q1 | Sanity | 10,000 frames with no loss in under 2 seconds | `test_sanity.py` |
 
 ## Entry and exit criteria

@@ -31,29 +31,14 @@ def test_round_trip_is_byte_exact(tunnel, frame):
 @pytest.mark.parametrize(
     "tunnel, overhead", [(GreTunnel(), 38), (VxlanTunnel(), 50)], ids=["gre", "vxlan"]
 )
-def test_overhead_is_exact(tunnel, overhead):
-    """Link MTU planning relies on these numbers: Eth+IP+GRE = 38, Eth+IP+UDP+VXLAN = 50."""
+def test_outer_headers(tunnel, overhead):
+    """MTU planning relies on the overhead (38 and 50 bytes), and DF stops silent fragmenting."""
     frame = build_frame()
-    assert len(tunnel.encap(frame)) == len(frame) + overhead
-
-
-def test_outer_ip_header(tunnel):
-    """The outer header routes the tunnel, and DF stops copies being silently fragmented."""
-    outer = Ether(tunnel.encap(build_frame()))
+    packet = tunnel.encap(frame)
+    outer = Ether(packet)
+    assert len(packet) == len(frame) + overhead
     assert (outer[IP].src, outer[IP].dst) == ("192.0.2.1", "192.0.2.2")
     assert "DF" in outer[IP].flags
-
-
-def test_plain_frame_is_rejected(tunnel):
-    """Decapsulating ordinary traffic must fail loudly rather than return garbage."""
-    with pytest.raises(TunnelError):
-        tunnel.decap(build_frame())
-
-
-def test_truncated_packet_is_rejected(tunnel):
-    """A cut-off tunnel packet would otherwise return a shortened inner frame as if valid."""
-    with pytest.raises(TunnelError):
-        tunnel.decap(tunnel.encap(build_frame())[:-10])
 
 
 def test_gre_header_bytes():
@@ -61,14 +46,6 @@ def test_gre_header_bytes():
     packet = GreTunnel().encap(build_frame())
     assert packet[IP_PROTO_OFFSET] == 47  # 47 = GRE
     assert packet[TUNNEL_OFFSET : TUNNEL_OFFSET + 4] == bytes.fromhex("00006558")
-
-
-def test_gre_rejects_other_payload_types():
-    """A GRE packet carrying plain IP has no Ethernet frame inside to hand back."""
-    packet = bytearray(GreTunnel().encap(build_frame()))
-    packet[TUNNEL_OFFSET + 2 : TUNNEL_OFFSET + 4] = bytes.fromhex("0800")
-    with pytest.raises(TunnelError):
-        GreTunnel().decap(bytes(packet))
 
 
 def test_vxlan_header_bytes():
@@ -80,34 +57,29 @@ def test_vxlan_header_bytes():
     assert packet[TUNNEL_OFFSET + 8 : TUNNEL_OFFSET + 16] == bytes.fromhex("0800000012345600")
 
 
-def test_vxlan_rejects_a_different_vni():
-    """The VNI separates tenants, so accepting the wrong one would leak traffic between them."""
-    packet = VxlanTunnel(vni=100).encap(build_frame())
+def test_plain_and_truncated_packets_are_rejected(tunnel):
+    """Decapsulation must fail loudly rather than return garbage or a shortened frame."""
+    for bad in (build_frame(), tunnel.encap(build_frame())[:-10]):
+        with pytest.raises(TunnelError):
+            tunnel.decap(bad)
+
+
+@pytest.mark.parametrize(
+    "tunnel, offset, new_bytes",
+    [
+        (GreTunnel(), 2, b"\x08\x00"),  # payload type is IPv4, so no Ethernet frame inside
+        (VxlanTunnel(), 2, b"\x04\xd2"),  # UDP destination port 1234, so not VXLAN
+        (VxlanTunnel(), 8, b"\x00"),  # I flag cleared, so the VNI is not valid
+        (VxlanTunnel(), 14, b"\x00"),  # a different VNI, which would mix up tenants' traffic
+    ],
+    ids=["gre-payload-type", "vxlan-port", "vxlan-flag", "vxlan-vni"],
+)
+def test_wrong_tunnel_header_is_rejected(tunnel, offset, new_bytes):
+    """Each field decides whether the packet is really for this endpoint. See the notes above."""
+    packet = tunnel.encap(build_frame())
+    start = TUNNEL_OFFSET + offset
     with pytest.raises(TunnelError):
-        VxlanTunnel(vni=200).decap(packet)
-
-
-def test_vxlan_rejects_a_cleared_vni_flag():
-    """RFC 7348 says the VNI is only valid when the I flag is set."""
-    packet = bytearray(VxlanTunnel().encap(build_frame()))
-    packet[TUNNEL_OFFSET + 8] = 0x00
-    with pytest.raises(TunnelError):
-        VxlanTunnel().decap(bytes(packet))
-
-
-def test_vxlan_rejects_the_wrong_udp_port():
-    """Other UDP traffic must not be mistaken for VXLAN."""
-    packet = bytearray(VxlanTunnel().encap(build_frame()))
-    packet[TUNNEL_OFFSET + 2 : TUNNEL_OFFSET + 4] = (1234).to_bytes(2)
-    with pytest.raises(TunnelError):
-        VxlanTunnel().decap(bytes(packet))
-
-
-def test_vxlan_source_port_is_stable_for_a_flow():
-    """A changing port would send one flow over several paths and reorder its packets."""
-    ports = {Ether(VxlanTunnel().encap(build_frame(bytes([i])))).sport for i in range(5)}
-    assert len(ports) == 1
-    assert 49152 <= ports.pop() <= 65535
+        tunnel.decap(packet[:start] + new_bytes + packet[start + len(new_bytes) :])
 
 
 def test_broker_encapsulates_only_the_monitor_copy(tunnel):

@@ -72,18 +72,16 @@ class PacketBroker:
         if len(frame) < MIN_FRAME_LEN:
             self.counters.dropped_runt += 1
             return False
-        if len(frame) > self._max_frame_len(frame):
+        # MTU covers the IP packet only. A VLAN tag gets 4 extra bytes so that
+        # tagging a full-size frame does not make it oversized.
+        max_len = ETH_HEADER_LEN + self.mtu + (VLAN_TAG_LEN if is_tagged(frame) else 0)
+        if len(frame) > max_len:
             self.counters.dropped_oversize += 1
             return False
         if vlan_id(frame) == RESERVED_VLAN_ID or not ipv4_header_is_valid(frame):
             self.counters.dropped_malformed += 1
             return False
         return True
-
-    def _max_frame_len(self, frame):
-        # MTU covers the IP packet only. A VLAN tag gets 4 extra bytes so that
-        # tagging a full-size frame does not make it oversized.
-        return ETH_HEADER_LEN + self.mtu + (VLAN_TAG_LEN if is_tagged(frame) else 0)
 
     def _vlan_is_allowed(self, frame):
         if self.vlan_allow is None:
