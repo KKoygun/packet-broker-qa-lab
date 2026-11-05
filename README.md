@@ -26,22 +26,8 @@ flowchart LR
     M --> O[Checks: scapy, raw bytes,<br/>tcpdump, golden pcaps]
 ```
 
-The integration tests run the same broker over real Linux veth pairs:
-
-```mermaid
-flowchart LR
-    subgraph pb-src
-        S[src0]
-    end
-    subgraph pb-dut
-        A[dut-in] --> BR[PacketBroker] --> C[dut-mon]
-    end
-    subgraph pb-mon
-        M[mon0]
-    end
-    S -- veth --> A
-    C -- veth --> M
-```
+The integration tests run the same broker over real Linux veth pairs, with one network namespace
+each for the traffic source (`pb-src`), the broker (`pb-dut`) and the monitor (`pb-mon`).
 
 ## Layout
 
