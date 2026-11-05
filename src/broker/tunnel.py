@@ -59,7 +59,7 @@ class VxlanTunnel:
 
     def encap(self, frame):
         # RFC 7348: the source port is derived from the inner frame so that routers
-        # balancing on UDP ports keep one flow on one path. RFC also allows checksum 0.
+        # balancing on UDP ports keep one flow on one path. It also says to send UDP checksum 0.
         sport = 49152 + zlib.crc32(frame[:12]) % 16384  # 49152-65535, from the two MACs
         udp = UDP(sport=sport, dport=VXLAN_PORT, chksum=0)
         outer = _outer_headers(self.src_ip, self.dst_ip)
