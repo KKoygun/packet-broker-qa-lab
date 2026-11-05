@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -e ".[dev]"
+      - run: .venv/bin/ruff check .
+      - run: .venv/bin/ruff format --check .
+
+  test:
+    runs-on: ubuntu-24.04 # its system Python is 3.12
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update && sudo apt-get install -y tcpdump
+      - run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -e ".[dev]"
+      # sudo so the netns tests run here instead of being skipped.
+      - name: Pytest
+        run: sudo .venv/bin/python -m pytest --html=report/index.html --self-contained-html
+      - name: Robot Framework
+        if: ${{ !cancelled() }}
+        run: sudo .venv/bin/python -m robot --outputdir report/robot robot/
+      # Failed runs are the ones where the report matters most, so upload those too.
+      - uses: actions/upload-pages-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          path: report
+
+  publish-report:
+    needs: test
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5
