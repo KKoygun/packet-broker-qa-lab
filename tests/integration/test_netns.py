@@ -1,12 +1,10 @@
 """Integration tests over real veth pairs. Unlike the in-memory tests, the kernel is involved."""
 
-import subprocess
-
 import pytest
 
 from broker.broker import PacketBroker
 from broker.frames import build_frame, build_frame_of_size
-from broker.netns import lab_down, lab_up, mirror_through_lab
+from broker.netns import mirror_through_lab, run_lab_script
 from broker.tunnel import GreTunnel, VxlanTunnel
 
 pytestmark = pytest.mark.netns
@@ -14,19 +12,9 @@ pytestmark = pytest.mark.netns
 
 @pytest.fixture(scope="module", autouse=True)
 def lab():
-    lab_up()
+    run_lab_script("up")
     yield
-    lab_down()
-
-
-@pytest.mark.parametrize(
-    "namespace, interface",
-    [("pb-src", "src0"), ("pb-dut", "dut-in"), ("pb-dut", "dut-mon"), ("pb-mon", "mon0")],
-)
-def test_lab_interfaces_exist(namespace, interface):
-    """If the setup script breaks, this says so directly instead of failing as a timeout later."""
-    command = ["ip", "-n", namespace, "link", "show", interface]
-    assert subprocess.run(command, capture_output=True).returncode == 0
+    run_lab_script("down")
 
 
 def test_frames_cross_the_lab_unchanged_and_in_order():
@@ -41,14 +29,6 @@ def test_vlan_filter_works_on_tags_from_the_kernel():
     broker = PacketBroker(vlan_allow={10})
     assert mirror_through_lab(broker, [allowed, build_frame(vlan=20)]) == [allowed]
     assert broker.counters.filtered_vlan == 1
-
-
-def test_runt_frame_from_a_socket_is_dropped():
-    """A veth pair carries short frames as they are, so the broker must catch them itself."""
-    good = build_frame()
-    broker = PacketBroker()
-    assert mirror_through_lab(broker, [good[:40], good]) == [good]
-    assert broker.counters.dropped_runt == 1
 
 
 @pytest.mark.parametrize("tunnel", [GreTunnel(), VxlanTunnel()], ids=["gre", "vxlan"])

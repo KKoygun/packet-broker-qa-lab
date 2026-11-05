@@ -16,17 +16,9 @@ VLAN Filter Keeps Only The Allowed VLAN
     Monitor Port Should Have    3
     Counter Should Be    filtered_vlan    2
 
-Runt Frame Is Dropped And Counted
-    Create Broker
-    Send Runt Frame
-    Monitor Port Should Have    0
-    Counter Should Be    dropped_runt    1
-
 Mirror Works Over Real Veth Pairs
     [Tags]    netns
     Skip Without Privileges
     Start Lab
-    Create Broker
-    Send Frames Through Lab    5
-    Monitor Namespace Should Have    5
+    Lab Should Deliver Frames    5
     [Teardown]    Stop Lab

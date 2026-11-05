@@ -1,11 +1,8 @@
 """Linux namespace helpers for the integration tests and the Robot suite.
 
-Topology (see scripts/netns_setup.sh):
-    pb-src [src0] <-veth-> [dut-in] pb-dut [dut-mon] <-veth-> [mon0] pb-mon
-
 A socket stays attached to the namespace it was created in, so one process can
 open a port in each namespace and drive them all. That avoids background
-processes and start-up races.
+processes and start-up races. The topology is drawn in scripts/netns_setup.sh.
 """
 
 import os
@@ -32,26 +29,20 @@ def have_privileges():
     return sys.platform == "linux" and os.geteuid() == 0 and shutil.which("ip") is not None
 
 
-def lab_up():
-    subprocess.run(["bash", str(SETUP_SCRIPT), "up"], check=True)
-
-
-def lab_down():
-    subprocess.run(["bash", str(SETUP_SCRIPT), "down"], check=True)
+def run_lab_script(action):
+    """Run netns_setup.sh with "up" or "down"."""
+    subprocess.run(["bash", str(SETUP_SCRIPT), action], check=True)
 
 
 @contextmanager
 def in_namespace(name):
     """Run a block inside a network namespace, then come back."""
-    home = os.open("/proc/self/ns/net", os.O_RDONLY)
-    target = os.open(f"/var/run/netns/{name}", os.O_RDONLY)
-    try:
+    with open("/proc/self/ns/net") as home, open(f"/var/run/netns/{name}") as target:
         os.setns(target, os.CLONE_NEWNET)
-        yield
-    finally:
-        os.setns(home, os.CLONE_NEWNET)
-        os.close(home)
-        os.close(target)
+        try:
+            yield
+        finally:
+            os.setns(home, os.CLONE_NEWNET)
 
 
 def open_port(namespace, interface, timeout=1.0):
@@ -95,17 +86,12 @@ def mirror_through_lab(broker, frames):
             broker.process(receive_frame(dut_in))
             for mirrored in broker.monitor_port[already_sent:]:
                 dut_mon.send(mirrored)
-        return _drain(mon)
+        received = []
+        try:
+            while True:  # read until quiet, so extra or duplicate frames get noticed too
+                received.append(receive_frame(mon))
+        except TimeoutError:
+            return received
     finally:
         for sock in (src, dut_in, dut_mon, mon):
             sock.close()
-
-
-def _drain(sock):
-    """Read until the port stays quiet, so extra or duplicate frames get noticed too."""
-    received = []
-    while True:
-        try:
-            received.append(receive_frame(sock))
-        except TimeoutError:
-            return received
