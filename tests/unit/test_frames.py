@@ -5,7 +5,9 @@ from scapy.layers.inet import IP, TCP, UDP
 from scapy.layers.l2 import Dot1Q, Ether
 
 from broker.frames import (
+    DST_MAC,
     MIN_FRAME_LEN,
+    SRC_MAC,
     build_frame,
     build_frame_of_size,
     build_runt,
@@ -54,11 +56,13 @@ def test_priority_tag_is_tagged_but_has_no_vlan():
 
 def test_vlan_reader_ignores_priority_bits():
     """The 3 PCP bits share a field with the VID, so a bad mask would give a wrong VLAN."""
-    tagged = bytes(Ether() / Dot1Q(vlan=10, prio=7) / IP()).ljust(MIN_FRAME_LEN, b"\x00")
-    assert vlan_id(tagged) == 10
+    frame = bytearray(build_frame(vlan=10))
+    frame[14] |= 0xE0  # byte 14 starts the tag; its top 3 bits are the priority
+    assert vlan_id(bytes(frame)) == 10
 
 
 def test_ipv4_check_passes_padded_and_non_ip_frames():
     """Padding is legal and non-IP traffic such as ARP is not the broker's business."""
     assert ipv4_header_is_valid(build_frame())
-    assert ipv4_header_is_valid(bytes(Ether(type=0x0806)).ljust(MIN_FRAME_LEN, b"\x00"))
+    arp = bytes(Ether(src=SRC_MAC, dst=DST_MAC, type=0x0806)).ljust(MIN_FRAME_LEN, b"\x00")
+    assert ipv4_header_is_valid(arp)
